@@ -1,5 +1,6 @@
 package com.manoj.aiincident.payment.client;
 
+import com.manoj.aiincident.payment.kafka.IncidentEventProducer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -13,11 +14,11 @@ public class InventoryClient {
             LoggerFactory.getLogger(InventoryClient.class);
 
     private final RestClient restClient;
-    private final IncidentClient incidentClient;
+    private final IncidentEventProducer incidentEventProducer;
 
-    public InventoryClient(IncidentClient incidentClient) {
+    public InventoryClient(IncidentEventProducer incidentEventProducer) {
 
-        this.incidentClient = incidentClient;
+        this.incidentEventProducer = incidentEventProducer;
 
         this.restClient = RestClient.builder()
                 .baseUrl("http://localhost:8081")
@@ -45,20 +46,16 @@ public class InventoryClient {
                     e.getMessage()
             );
 
-            try {
-                incidentClient.createIncident(
-                        "payment-service",
-                        "inventory-service",
-                        "DEPENDENCY_FAILURE",
-                        "Inventory service unavailable"
-                );
-            } catch (Exception incidentException) {
+            String incidentEvent = """
+                    {
+                      "sourceService": "payment-service",
+                      "targetService": "inventory-service",
+                      "errorType": "DEPENDENCY_FAILURE",
+                      "errorMessage": "Inventory service unavailable"
+                    }
+                    """;
 
-                log.error(
-                        "Failed to record incident: {}",
-                        incidentException.getMessage()
-                );
-            }
+            incidentEventProducer.sendIncidentEvent(incidentEvent);
 
             throw new RuntimeException(
                     "Inventory service unavailable",
